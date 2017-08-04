@@ -2,7 +2,7 @@
 <link_info>
    <banner>MSP430 Linker Unix v17.3.0.STS</banner>
    <copyright>Copyright (c) 2003-2017 Texas Instruments Incorporated</copyright>
-   <link_time>0x5984ee21</link_time>
+   <link_time>0x5984eefd</link_time>
    <link_errors>0x0</link_errors>
    <output_file>BedLight.out</output_file>
    <entry_point>

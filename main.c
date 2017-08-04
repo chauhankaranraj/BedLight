@@ -17,11 +17,7 @@
 
 
 /*************************************************************************
- * Set up output from timer on set/reset mode
- * Set every 2400us, reset in 100us after set
- *
- * PWM will stay low for TRIG_LOW_TIME, then go high for TRIG_HIGH_TIME,
- * and then low again (duty cycle = ~0.385%)
+ * Set up output on led pin
  *************************************************************************/
 void set_up_led_output(void)
 {
@@ -52,11 +48,7 @@ void set_up_trig_pulse(void)
 
 
 /*************************************************************************
- * Set up output from timer on set/reset mode
- * Set every 2400us, reset in 100us after set
- *
- * PWM will stay low for TRIG_LOW_TIME, then go high for TRIG_HIGH_TIME,
- * and then low again (duty cycle = ~3.85%)
+ * Set up an input pin to read echo pin of ultrasonic sensor
  *************************************************************************/
 void set_up_read_echo(void)
 {
@@ -116,4 +108,3 @@ int main(void)
 
     _BIS_SR(LPM0_bits);         // Enter LPM0
 }
-
