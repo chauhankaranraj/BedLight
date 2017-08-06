@@ -1,110 +1,82 @@
 #include <msp430.h> 
 
-// Defines for LED
-#define LED_PORT P1
-#define LED_PIN BIT5
+#define READ_ECHO_PIN BIT5
 
-// Defines for trigger pin and pulse
-#define TRIG_PORT P1
-#define TRIG_PIN BIT2
-#define TRIG_LOW_TIME 25000-1
-#define TRIG_HIGH_TIME 100
+#define TRIGGER_PULSE_PIN BIT1
+#define TRIGGER_PULSE_LOW_TIME 25000
+#define TRIGGER_PULSE_TOTAL_TIME 25100
 
-// Defines for echo pin and pulse
-#define ECHO_PORT P2
-#define ECHO_PIN BIT2
-#define MAX_ECHO_HIGH_TIME 23500
+#define LED_OUTPUT_PIN BIT3
+
+unsigned long long counter = 0;
 
 
-/*************************************************************************
- * Set up output on led pin
- *************************************************************************/
-void set_up_led_output(void)
+void init_read_echo(void)
 {
-    P1DIR |= LED_PIN;        // set as output pin
-    P1OUT &= ~LED_PIN;       // set output low on pin
+    P1DIR &= ~READ_ECHO_PIN;     // set as input pin
+    P1OUT &= ~READ_ECHO_PIN;     // set resistor pull down
+    P1REN |= READ_ECHO_PIN;      // internal pull resistor enable
+
+    P1IE |= READ_ECHO_PIN;       // enable interrupt
+    P1IES &= ~READ_ECHO_PIN;     // interrupt on edge low to high transition
+    P1IFG &= ~READ_ECHO_PIN;     // clear interrupt flag
 }
 
 
-/*************************************************************************
- * Set up output from timer on set/reset mode
- * Set every 2400us, reset in 100us after set
- *
- * PWM will stay low for TRIG_LOW_TIME, then go high for TRIG_HIGH_TIME,
- * and then low again (duty cycle = ~0.385%)
- *************************************************************************/
-void set_up_trig_pulse(void)
+void init_trigger_pulse(void)
 {
-    P1DIR |= TRIG_PIN;          // P1.2 to output
-    P1SEL |= TRIG_PIN;          // P1.2 to TA0.1
+    P1DIR |= TRIGGER_PULSE_PIN;                      // P1.1 to output
+    P1SEL |= TRIGGER_PULSE_PIN;                      // P1.1 to TA0.1
 
     TA0CTL = TASSEL_2                   // timer source SMCLK
-            + MC_1;                     // up mode to CCR0
+           + MC_1;                      // up mode to CCR0
 
     TA0CCTL0 = OUTMOD_3;                // set/reset mode
-    TA0CCR0 = TRIG_LOW_TIME;            // will set output low after 100us of high
-    TA0CCR1 = TRIG_HIGH_TIME;           // will set output high when 100 have passed since low
+    TA0CCR0 = TRIGGER_PULSE_LOW_TIME;                    // will set output high after 25000us of low
+    TA0CCR1 = TRIGGER_PULSE_TOTAL_TIME;                    // will set output low after 100us of high
 }
 
 
-/*************************************************************************
- * Set up an input pin to read echo pin of ultrasonic sensor
- *************************************************************************/
-void set_up_read_echo(void)
+#pragma vector=PORT1_VECTOR
+__interrupt void Port_1(void)
 {
-    // set up echo pin to be input pin with pull down resistor
-    P2SEL &= ~ECHO_PIN;     // i/o function selected, 0
-    P2DIR &= ~ECHO_PIN;     // input mode (p3.5), 0
-    P2OUT &= ~ECHO_PIN;     // select pull-down mode, 0
-    P2REN |= ECHO_PIN;      // enable internal pull up, 1
-
-    // set up interrupt on echo pin reading low to high
-    P2IE |= ECHO_PIN;       // enable interrupt for echo pin
-    P2IES &= ~ECHO_PIN;     // low to high transition
-    P2IFG &= ~ ECHO_PIN;    // clear the interrupt flag
-}
-
-
-/*************************************************************************
- * ECHO port ISR to read echo pulse
- *************************************************************************/
-#pragma vector=PORT2_VECTOR
-__interrupt void Port_2(void)
-{
-    //P2IE &= ~ECHO_PIN;      // disable interrupt don't interrupt if already inside interrupt
-
-    // count how long the echo input pin stays high
-    unsigned long long highTimeCount = 0;
-    while ((P2IN & ECHO_PIN) != 0)
+    if (P1IFG & READ_ECHO_PIN)
     {
-        highTimeCount++;
-    }
-
-    // if it stayed high for anything less than the max value, turn on LED. Otherwise, turn it off
-    if (highTimeCount < MAX_ECHO_HIGH_TIME)
-    {
-        P1OUT |= LED_PIN;
-    }
-    else
-    {
-        P1OUT &= ~LED_PIN;
+        while(P1IN & READ_ECHO_PIN)
+        {
+            counter += 1;
+        }
+        if (counter > 500)
+        {
+            P1OUT &= ~LED_OUTPUT_PIN;
+        }
+        else
+        {
+            P1OUT |= LED_OUTPUT_PIN;
+        }
+        counter = 0;
+        P1IFG &= ~READ_ECHO_PIN;
     }
 }
 
 
-/*************************************************************************
+/**
  * main.c
- *************************************************************************/
+ */
 int main(void)
 {
-    WDTCTL = WDTPW | WDTHOLD;   // Stop watchdog timer
-
+	WDTCTL = WDTPW | WDTHOLD;	// stop watchdog timer
+	
     BCSCTL1 = CALBC1_1MHZ;      // configure clocks for 1MHz frequency
     DCOCTL = CALDCO_1MHZ;
 
-    set_up_led_output();        // set up output on LED pin
-    set_up_trig_pulse();        // set up sending trigger pulse on ultrasonic sensor
-    set_up_read_echo();         // set up to read echo from ultrasonic sensor
+    // led output pin
+    P1DIR |= LED_OUTPUT_PIN;
+    P1OUT &= ~LED_OUTPUT_PIN;
 
-    _BIS_SR(LPM0_bits);         // Enter LPM0
+    init_read_echo();           // set up to read from echo pin
+
+    init_trigger_pulse();       // start sending pulse on trigger pin
+
+    _BIS_SR(LPM0_bits + GIE);           // Enter LPM0 with global interrupts enabled
 }
